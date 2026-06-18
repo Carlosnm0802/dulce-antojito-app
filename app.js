@@ -32,6 +32,8 @@ let state = {
   ultimoElementoEnfocado: null,
 };
 
+const feedbackTimersByOrderId = new Map();
+
 // 2. Referencias al DOM
 const $ = id => document.getElementById(id);
 
@@ -44,6 +46,7 @@ const dom = {
   formToggleBtn:  $('form-toggle-btn'),
   formWrapper:    $('order-form'),
   form:           $('add-order-form'),
+  formAlert:      $('form-alert'),
   clientName:     $('client-name'),
   contactPhone:   $('contact-phone'),
   dessertDesc:    $('dessert-desc'),
@@ -177,6 +180,15 @@ function hoyISO() {
   return `${y}-${m}-${d}`;
 }
 
+function sugerirHoraEntrega() {
+  const ahora = new Date();
+  ahora.setMinutes(0, 0, 0);
+  ahora.setHours(ahora.getHours() + 2);
+  const h = String(ahora.getHours()).padStart(2, '0');
+  const m = String(ahora.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 // true si la fecha de entrega ya pasó y el pedido no está entregado
 function estaVencido(pedido) {
   if (pedido.status === 'Entregado') return false;
@@ -211,6 +223,11 @@ function limpiarErrores() {
     el.classList.remove('is-invalid');
       el.closest('.input-money')?.classList.remove('is-invalid');
   });
+
+  if (dom.formAlert) {
+    dom.formAlert.textContent = '';
+    dom.formAlert.setAttribute('hidden', '');
+  }
 }
 
 function telefonoEsValido(phoneValue) {
@@ -254,70 +271,82 @@ function mostrarError(inputEl, errorEl, mensaje) {
 function validarFormulario() {
   limpiarErrores();
   let valido = true;
+  let primerCampoInvalido = null;
+  let totalErrores = 0;
+
+  const marcarError = (inputEl, errorEl, mensaje) => {
+    mostrarError(inputEl, errorEl, mensaje);
+    valido = false;
+    totalErrores += 1;
+    if (!primerCampoInvalido) {
+      primerCampoInvalido = inputEl;
+    }
+  };
 
   const nombre = dom.clientName.value.trim();
   if (!nombre) {
-    mostrarError(dom.clientName, dom.errClientName, 'El nombre del cliente es obligatorio.');
-    valido = false;
+    marcarError(dom.clientName, dom.errClientName, 'El nombre del cliente es obligatorio.');
   }
 
   const telefono = dom.contactPhone.value.trim();
   if (!telefono) {
-    mostrarError(dom.contactPhone, dom.errContactPhone, 'El teléfono de contacto es obligatorio.');
-    valido = false;
+    marcarError(dom.contactPhone, dom.errContactPhone, 'El teléfono de contacto es obligatorio.');
   } else if (!telefonoEsValido(telefono)) {
-    mostrarError(dom.contactPhone, dom.errContactPhone, 'Ingresa un teléfono válido (mínimo 8 dígitos).');
-    valido = false;
+    marcarError(dom.contactPhone, dom.errContactPhone, 'Ingresa un teléfono válido (mínimo 8 dígitos).');
   }
 
   const desc = dom.dessertDesc.value.trim();
   if (!desc) {
-    mostrarError(dom.dessertDesc, dom.errDessertDesc, 'Describe qué encargó el cliente.');
-    valido = false;
+    marcarError(dom.dessertDesc, dom.errDessertDesc, 'Describe qué encargó el cliente.');
   }
 
   const direccion = dom.deliveryAddress.value.trim();
   if (!direccion) {
-    mostrarError(dom.deliveryAddress, dom.errDeliveryAddress, 'La dirección de entrega es obligatoria.');
-    valido = false;
+    marcarError(dom.deliveryAddress, dom.errDeliveryAddress, 'La dirección de entrega es obligatoria.');
   }
 
   const fechaEncargo = dom.orderDate.value;
   if (!fechaEncargo) {
-    mostrarError(dom.orderDate, dom.errOrderDate, 'Indica cuándo se hizo el encargo.');
-    valido = false;
+    marcarError(dom.orderDate, dom.errOrderDate, 'Indica cuándo se hizo el encargo.');
   }
 
   const fechaEntrega = dom.deliveryDate.value;
   if (!fechaEntrega) {
-    mostrarError(dom.deliveryDate, dom.errDeliveryDate, 'Indica la fecha de entrega.');
-    valido = false;
+    marcarError(dom.deliveryDate, dom.errDeliveryDate, 'Indica la fecha de entrega.');
   }
 
   const horaEntrega = dom.deliveryTime.value;
   if (!horaEntrega) {
-    mostrarError(dom.deliveryTime, dom.errDeliveryTime, 'Indica la hora de entrega.');
-    valido = false;
+    marcarError(dom.deliveryTime, dom.errDeliveryTime, 'Indica la hora de entrega.');
   } else if (!horaEsValida(horaEntrega)) {
-    mostrarError(dom.deliveryTime, dom.errDeliveryTime, 'Ingresa una hora válida (HH:MM).');
-    valido = false;
+    marcarError(dom.deliveryTime, dom.errDeliveryTime, 'Ingresa una hora válida (HH:MM).');
   }
 
   if (fechaEncargo && fechaEntrega && fechaEntrega < fechaEncargo) {
-    mostrarError(dom.deliveryDate, dom.errDeliveryDate, 'La entrega no puede ser antes del encargo.');
-    valido = false;
+    marcarError(dom.deliveryDate, dom.errDeliveryDate, 'La entrega no puede ser antes del encargo.');
   }
 
   const costo = parseFloat(dom.cost.value);
   if (dom.cost.value === '' || isNaN(costo) || costo < 0) {
-    mostrarError(dom.cost, dom.errCost, 'Ingresa un costo válido (puede ser 0).');
-    valido = false;
+    marcarError(dom.cost, dom.errCost, 'Ingresa un costo válido (puede ser 0).');
   }
 
   const precio = parseFloat(dom.price.value);
   if (dom.price.value === '' || isNaN(precio) || precio < 0) {
-    mostrarError(dom.price, dom.errPrice, 'Ingresa un precio de venta válido.');
-    valido = false;
+    marcarError(dom.price, dom.errPrice, 'Ingresa un precio de venta válido.');
+  }
+
+  if (!valido) {
+    if (dom.formAlert) {
+      dom.formAlert.textContent = totalErrores === 1
+        ? 'Hay 1 campo pendiente por corregir.'
+        : `Hay ${totalErrores} campos pendientes por corregir.`;
+      dom.formAlert.removeAttribute('hidden');
+    }
+
+    if (primerCampoInvalido) {
+      primerCampoInvalido.focus();
+    }
   }
 
   return valido;
@@ -365,12 +394,57 @@ function eliminarPedido(id) {
 
 function actualizarHoraEntrega(id, nuevaHora) {
   const pedido = state.pedidos.find(p => p.id === id);
-  if (!pedido) return;
-  if (!horaEsValida(nuevaHora)) return;
+  if (!pedido) return false;
+  if (!horaEsValida(nuevaHora)) return false;
 
   pedido.deliveryTime = nuevaHora;
   guardarPedidos();
   renderPedidos();
+  return true;
+}
+
+function actualizarFechaEntrega(id, nuevaFecha) {
+  const pedido = state.pedidos.find(p => p.id === id);
+  if (!pedido) return false;
+  if (!fechaISOEsValida(nuevaFecha)) return false;
+  if (nuevaFecha < pedido.orderDate) return false;
+
+  pedido.deliveryDate = nuevaFecha;
+  guardarPedidos();
+  renderPedidos();
+  return true;
+}
+
+function mostrarFeedbackGuardado(id, mensaje) {
+  const card = dom.ordersContainer.querySelector(`.order-card[data-id="${id}"]`);
+  if (!card) return;
+
+  const cardBody = card.querySelector('.card-body');
+  if (!cardBody) return;
+
+  let feedback = cardBody.querySelector('.card-inline-feedback');
+  if (!feedback) {
+    feedback = document.createElement('p');
+    feedback.className = 'card-inline-feedback';
+    feedback.setAttribute('role', 'status');
+    feedback.setAttribute('aria-live', 'polite');
+    cardBody.appendChild(feedback);
+  }
+
+  feedback.textContent = mensaje;
+  feedback.classList.add('is-visible');
+
+  const timerPrevio = feedbackTimersByOrderId.get(id);
+  if (timerPrevio) {
+    clearTimeout(timerPrevio);
+  }
+
+  const nuevoTimer = setTimeout(() => {
+    feedback.classList.remove('is-visible');
+    feedbackTimersByOrderId.delete(id);
+  }, 1300);
+
+  feedbackTimersByOrderId.set(id, nuevoTimer);
 }
 
 // 7. Filtrado y ordenamiento
@@ -455,6 +529,19 @@ function crearCardHTML(pedido) {
             ${vencido ? '🚨' : '🗓'} Entrega: ${formatearFecha(pedido.deliveryDate)}
             ${vencido ? '<span class="overdue-label">VENCIDO</span>' : ''}
           </span>
+          <div class="delivery-date-editor">
+            <label class="delivery-date-label" for="delivery-date-${pedido.id}">📅 Fecha:</label>
+            <input
+              class="delivery-date-input"
+              id="delivery-date-${pedido.id}"
+              type="date"
+              value="${pedido.deliveryDate}"
+              min="${pedido.orderDate}"
+              data-id="${pedido.id}"
+              data-action="update-date"
+              aria-label="Fecha de entrega para ${escapeHTML(pedido.clientName)}"
+            />
+          </div>
           <div class="delivery-time-editor">
             <label class="delivery-time-label" for="delivery-time-${pedido.id}">⏰ Hora:</label>
             <input
@@ -647,6 +734,8 @@ dom.form.addEventListener('submit', e => {
 
   dom.form.reset();
   limpiarErrores();
+  dom.orderDate.value = hoyISO();
+  dom.deliveryTime.value = sugerirHoraEntrega();
 
   // En móvil, cerrar el formulario después de guardar
   if (window.innerWidth < 640) {
@@ -681,19 +770,43 @@ dom.ordersContainer.addEventListener('click', e => {
 });
 
 dom.ordersContainer.addEventListener('change', e => {
-  const input = e.target.closest('[data-action="update-time"]');
+  const input = e.target.closest('[data-action="update-time"], [data-action="update-date"]');
   if (!input) return;
 
   const id = input.dataset.id;
-  const nuevaHora = input.value;
+  const accion = input.dataset.action;
 
-  if (!horaEsValida(nuevaHora)) {
-    const pedido = state.pedidos.find(p => p.id === id);
-    input.value = horaEsValida(pedido?.deliveryTime) ? pedido.deliveryTime : '';
+  if (accion === 'update-time') {
+    const nuevaHora = input.value;
+
+    if (!horaEsValida(nuevaHora)) {
+      const pedido = state.pedidos.find(p => p.id === id);
+      input.value = horaEsValida(pedido?.deliveryTime) ? pedido.deliveryTime : '';
+      return;
+    }
+
+    const actualizado = actualizarHoraEntrega(id, nuevaHora);
+    if (actualizado) {
+      mostrarFeedbackGuardado(id, 'Hora guardada');
+    }
     return;
   }
 
-  actualizarHoraEntrega(id, nuevaHora);
+  if (accion === 'update-date') {
+    const nuevaFecha = input.value;
+    const pedido = state.pedidos.find(p => p.id === id);
+    const fechaActual = pedido?.deliveryDate ?? '';
+
+    if (!fechaISOEsValida(nuevaFecha) || !pedido || nuevaFecha < pedido.orderDate) {
+      input.value = fechaActual;
+      return;
+    }
+
+    const actualizada = actualizarFechaEntrega(id, nuevaFecha);
+    if (actualizada) {
+      mostrarFeedbackGuardado(id, 'Fecha guardada');
+    }
+  }
 });
 
 // Filtros
@@ -772,6 +885,7 @@ function init() {
 
   // Fecha de encargo por defecto: hoy
   dom.orderDate.value = hoyISO();
+  dom.deliveryTime.value = sugerirHoraEntrega();
 
   renderPedidos();
 }
