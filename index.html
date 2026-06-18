@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dulce Antojito — Mis Pedidos</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Nunito:wght@400;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════
+       HEADER — Identidad de la marca
+  ════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">🍮</span>
+        <div class="brand-text">
+          <h1 class="brand-name">Dulce Antojito</h1>
+          <p class="brand-subtitle">Repostería Casera · Mis Pedidos</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ═══════════════════════════════════════
+         SECCIÓN 1 — Formulario: Agregar pedido
+    ════════════════════════════════════════ -->
+    <section class="form-section" aria-labelledby="form-title">
+
+      <!-- Botón toggle (solo visible en móvil) -->
+      <button
+        class="form-toggle-btn"
+        id="form-toggle-btn"
+        aria-expanded="false"
+        aria-controls="order-form"
+      >
+        <span class="toggle-icon" aria-hidden="true">＋</span>
+        Agregar nuevo pedido
+      </button>
+
+      <!-- Formulario -->
+      <div class="form-wrapper" id="order-form">
+        <h2 class="form-title" id="form-title">Nuevo Pedido</h2>
+
+        <form id="add-order-form" novalidate>
+
+          <div class="form-group">
+            <label for="client-name">Nombre del cliente</label>
+            <input
+              type="text"
+              id="client-name"
+              name="clientName"
+              placeholder="Ej. María González"
+              maxlength="60"
+              required
+              autocomplete="off"
+            />
+            <span class="field-error" id="error-client-name" role="alert"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="dessert-desc">¿Qué encargó?</label>
+            <textarea
+              id="dessert-desc"
+              name="dessertDesc"
+              placeholder="Ej. Pastel de 3 leches para 20 personas, con fresas"
+              rows="3"
+              maxlength="200"
+              required
+            ></textarea>
+            <span class="field-error" id="error-dessert-desc" role="alert"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="order-date">Fecha en que se encargó</label>
+            <input
+              type="date"
+              id="order-date"
+              name="orderDate"
+              required
+            />
+            <span class="field-error" id="error-order-date" role="alert"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="delivery-date">Fecha de entrega</label>
+            <input
+              type="date"
+              id="delivery-date"
+              name="deliveryDate"
+              required
+            />
+            <span class="field-error" id="error-delivery-date" role="alert"></span>
+          </div>
+
+          <!-- Fila de costos -->
+          <div class="form-group">
+            <label for="cost">Costo (lo que te costó hacerlo)</label>
+            <div class="input-money">
+              <span class="money-prefix" aria-hidden="true">$</span>
+              <input
+                type="number"
+                id="cost"
+                name="cost"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <span class="field-error" id="error-cost" role="alert"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="price">Precio de venta (lo que le cobras)</label>
+            <div class="input-money">
+              <span class="money-prefix" aria-hidden="true">$</span>
+              <input
+                type="number"
+                id="price"
+                name="price"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <span class="field-error" id="error-price" role="alert"></span>
+          </div>
+
+          <button type="submit" class="btn btn-primary" id="submit-btn">
+            <span aria-hidden="true">✓</span> Guardar pedido
+          </button>
+
+        </form>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         SECCIÓN 2 — Controles: Filtros y orden
+    ════════════════════════════════════════ -->
+    <section class="controls-section" aria-label="Filtros y ordenamiento">
+
+      <!-- Filtros por estado -->
+      <div class="filters" role="group" aria-label="Filtrar por estado">
+        <span class="filters-label">Ver:</span>
+
+        <button
+          class="filter-btn active"
+          data-filter="all"
+          aria-pressed="true"
+        >
+          Todos
+        </button>
+        <button
+          class="filter-btn"
+          data-filter="Pendiente"
+          aria-pressed="false"
+        >
+          Pendientes
+        </button>
+        <button
+          class="filter-btn"
+          data-filter="Listo"
+          aria-pressed="false"
+        >
+          Listos
+        </button>
+        <button
+          class="filter-btn"
+          data-filter="Entregado"
+          aria-pressed="false"
+        >
+          Entregados
+        </button>
+      </div>
+
+      <!-- Contador de resultados -->
+      <p class="results-count" id="results-count" aria-live="polite">
+        <!-- JS lo llena: "3 pedidos" -->
+      </p>
+
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         SECCIÓN 3 — Grid de tarjetas de pedidos
+    ════════════════════════════════════════ -->
+    <section class="orders-section" aria-label="Lista de pedidos">
+
+      <!-- Estado vacío — JS lo muestra/oculta -->
+      <div class="empty-state" id="empty-state" hidden>
+        <span class="empty-icon" aria-hidden="true">🍰</span>
+        <p class="empty-title">No hay pedidos aquí todavía</p>
+        <p class="empty-hint">¡Agrega tu primer pedido con el botón de arriba!</p>
+      </div>
+
+      <!-- Contenedor de cards — JS inyecta las tarjetas aquí -->
+      <div
+        class="orders-grid"
+        id="orders-container"
+        role="list"
+        aria-label="Tarjetas de pedidos"
+      >
+        <!-- Las cards se generan dinámicamente con JavaScript -->
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════
+       MODAL — Confirmación de eliminación
+  ════════════════════════════════════════ -->
+  <div
+    class="modal-overlay"
+    id="delete-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    hidden
+  >
+    <div class="modal">
+      <span class="modal-icon" aria-hidden="true">🗑️</span>
+      <h3 class="modal-title" id="modal-title">¿Eliminar este pedido?</h3>
+      <p class="modal-message" id="modal-message">
+        <!-- JS inyecta: "Se eliminará el pedido de [cliente]." -->
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="modal-cancel-btn">
+          Cancelar
+        </button>
+        <button class="btn btn-danger" id="modal-confirm-btn">
+          Sí, eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de fondo del modal (para cerrar al hacer clic fuera) -->
+  <div class="modal-backdrop" id="modal-backdrop" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
