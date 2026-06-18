@@ -231,6 +231,12 @@
         <!-- JS lo llena: "3 pedidos" -->
       </p>
 
+      <div class="controls-actions">
+        <button class="btn btn-ghost" id="clear-pedidos-btn" type="button">
+          Limpiar pedidos
+        </button>
+      </div>
+
     </section>
 
     <!-- ═══════════════════════════════════════
@@ -284,6 +290,89 @@
           Sí, eliminar
         </button>
       </div>
+    </div>
+  </div>
+
+  <div
+    class="modal-overlay"
+    id="edit-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="edit-modal-title"
+    hidden
+  >
+    <div class="modal modal-edit">
+      <h3 class="modal-title" id="edit-modal-title">Editar pedido</h3>
+      <p class="modal-message">Actualiza los datos del pedido y guarda los cambios.</p>
+
+      <p class="form-alert" id="edit-form-alert" role="alert" aria-live="assertive" hidden></p>
+
+      <form id="edit-order-form" novalidate>
+        <div class="form-group">
+          <label for="edit-client-name">Nombre del cliente</label>
+          <input type="text" id="edit-client-name" maxlength="60" required autocomplete="off" />
+          <span class="field-error" id="edit-error-client-name" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-contact-phone">Teléfono de contacto</label>
+          <input type="tel" id="edit-contact-phone" maxlength="25" required autocomplete="tel" />
+          <span class="field-error" id="edit-error-contact-phone" role="alert"></span>
+        </div>
+
+        <div class="form-group is-full">
+          <label for="edit-dessert-desc">¿Qué encargó?</label>
+          <textarea id="edit-dessert-desc" rows="3" maxlength="200" required></textarea>
+          <span class="field-error" id="edit-error-dessert-desc" role="alert"></span>
+        </div>
+
+        <div class="form-group is-full">
+          <label for="edit-delivery-address">Dirección de entrega</label>
+          <textarea id="edit-delivery-address" rows="2" maxlength="220" required></textarea>
+          <span class="field-error" id="edit-error-delivery-address" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-order-date">Fecha en que se encargó</label>
+          <input type="date" id="edit-order-date" required />
+          <span class="field-error" id="edit-error-order-date" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-delivery-date">Fecha de entrega</label>
+          <input type="date" id="edit-delivery-date" required />
+          <span class="field-error" id="edit-error-delivery-date" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-delivery-time">Hora de entrega</label>
+          <input type="time" id="edit-delivery-time" required />
+          <span class="field-error" id="edit-error-delivery-time" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-cost">Costo</label>
+          <div class="input-money">
+            <span class="money-prefix" aria-hidden="true">$</span>
+            <input type="number" id="edit-cost" min="0" step="0.01" required />
+          </div>
+          <span class="field-error" id="edit-error-cost" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-price">Precio de venta</label>
+          <div class="input-money">
+            <span class="money-prefix" aria-hidden="true">$</span>
+            <input type="number" id="edit-price" min="0" step="0.01" required />
+          </div>
+          <span class="field-error" id="edit-error-price" role="alert"></span>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="edit-modal-cancel-btn" type="button">Cancelar</button>
+          <button class="btn btn-primary" id="edit-modal-save-btn" type="submit">Guardar cambios</button>
+        </div>
+      </form>
     </div>
   </div>
 

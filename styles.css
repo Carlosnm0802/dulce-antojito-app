@@ -559,6 +559,28 @@ input, textarea, select {
   font-weight: 600;
 }
 
+.controls-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-ghost {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text-soft);
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  transition: all var(--transition);
+}
+
+.btn-ghost:hover {
+  color: var(--color-danger);
+  border-color: rgba(192, 67, 90, 0.25);
+  background: var(--color-danger-bg);
+}
+
 /* ───────────────────────────────────────────────────
    8. GRID DE PEDIDOS
 ─────────────────────────────────────────────────── */
@@ -726,62 +748,6 @@ input, textarea, select {
   border-color: rgba(192, 67, 90, 0.25);
 }
 
-.delivery-date-editor,
-.delivery-time-editor {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-  padding: 2px;
-  border-radius: var(--radius-full);
-}
-
-.delivery-date-label,
-.delivery-time-label {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--color-text-soft);
-}
-
-.delivery-date-input,
-.delivery-time-input {
-  border: 1.5px solid var(--color-border);
-  background: var(--color-base);
-  color: var(--color-text);
-  border-radius: var(--radius-full);
-  padding: 6px 10px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  min-height: 34px;
-}
-
-.delivery-date-input:focus,
-.delivery-time-input:focus {
-  outline: none;
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgba(232, 39, 106, 0.12);
-}
-
-.card-inline-feedback {
-  align-self: flex-start;
-  margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: #fff;
-  background: var(--status-ready-bar);
-  border-radius: var(--radius-full);
-  padding: 2px 10px;
-  opacity: 0;
-  transform: translateY(4px);
-  pointer-events: none;
-  transition: opacity var(--transition), transform var(--transition);
-}
-
-.card-inline-feedback.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
 .overdue-label {
   background: var(--color-danger);
   color: #fff;
@@ -827,6 +793,33 @@ input, textarea, select {
 .btn-advance:disabled {
   opacity: 0.40;
   cursor: not-allowed;
+}
+
+.btn-details {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  min-height: 38px;
+  transition: all var(--transition);
+}
+
+.btn-details:hover {
+  color: var(--color-brand-dark);
+  border-color: var(--color-border);
+  background: rgba(232, 39, 106, 0.06);
+}
+
+.card-actions .btn-delete {
+  margin-left: 0;
+}
+
+.btn-advance,
+.btn-delete {
+  letter-spacing: 0.01em;
 }
 
 /* Botón eliminar */
@@ -913,6 +906,28 @@ input, textarea, select {
   gap: var(--space-4);
   box-shadow: var(--shadow-lg);
   animation: modal-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.modal-edit {
+  max-width: 700px;
+  align-items: stretch;
+  text-align: left;
+  max-height: min(92vh, 860px);
+  overflow-y: auto;
+}
+
+#edit-order-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 var(--space-4);
+}
+
+#edit-order-form .form-group.is-full {
+  grid-column: 1 / -1;
+}
+
+#edit-order-form .modal-actions {
+  margin-top: var(--space-3);
 }
 
 @keyframes modal-in {
@@ -1021,5 +1036,9 @@ input, textarea, select {
   /* Botón — ancho completo */
   #add-order-form #submit-btn {
     grid-column: 1 / -1;
+  }
+
+  #edit-order-form {
+    grid-template-columns: 1fr 1fr;
   }
 }

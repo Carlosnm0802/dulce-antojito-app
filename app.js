@@ -4,9 +4,9 @@
 const STORAGE_KEY = 'dulceAntojito_pedidos';
 
 const ESTADO_ICONS = {
-  Pendiente:  '⏳',
-  Listo:      '✅',
-  Entregado:  '📦',
+  Pendiente:  '',
+  Listo:      '',
+  Entregado:  '',
 };
 
 const ESTADO_SIGUIENTE = {
@@ -16,8 +16,8 @@ const ESTADO_SIGUIENTE = {
 };
 
 const ESTADO_BTN_LABEL = {
-  Pendiente: '✅ Marcar como Listo',
-  Listo:     '📦 Marcar como Entregado',
+  Pendiente: 'Marcar como Listo',
+  Listo:     'Marcar como Entregado',
   Entregado: 'Entregado',
 };
 
@@ -29,10 +29,10 @@ let state = {
   pedidos:       [],   // array de objetos pedido
   filtroActivo:  'all',
   pedidoAEliminar: null,  // id del pedido en espera de confirmación
+  pedidoAEditar: null,
+  modalActivo: null,
   ultimoElementoEnfocado: null,
 };
-
-const feedbackTimersByOrderId = new Map();
 
 // 2. Referencias al DOM
 const $ = id => document.getElementById(id);
@@ -72,6 +72,7 @@ const dom = {
   // Controles
   filterBtns:     document.querySelectorAll('.filter-btn'),
   resultsCount:   $('results-count'),
+  clearPedidosBtn:$('clear-pedidos-btn'),
 
   // Pedidos
   ordersContainer: $('orders-container'),
@@ -79,10 +80,36 @@ const dom = {
 
   // Modal
   deleteModal:     $('delete-modal'),
+  editModal:       $('edit-modal'),
   modalBackdrop:   $('modal-backdrop'),
   modalMessage:    $('modal-message'),
   modalCancelBtn:  $('modal-cancel-btn'),
   modalConfirmBtn: $('modal-confirm-btn'),
+
+  // Formulario de edición
+  editForm:          $('edit-order-form'),
+  editFormAlert:     $('edit-form-alert'),
+  editClientName:    $('edit-client-name'),
+  editContactPhone:  $('edit-contact-phone'),
+  editDessertDesc:   $('edit-dessert-desc'),
+  editDeliveryAddress:$('edit-delivery-address'),
+  editOrderDate:     $('edit-order-date'),
+  editDeliveryDate:  $('edit-delivery-date'),
+  editDeliveryTime:  $('edit-delivery-time'),
+  editCost:          $('edit-cost'),
+  editPrice:         $('edit-price'),
+  editModalCancelBtn:$('edit-modal-cancel-btn'),
+
+  // Errores del formulario de edición
+  editErrClientName:    $('edit-error-client-name'),
+  editErrContactPhone:  $('edit-error-contact-phone'),
+  editErrDessertDesc:   $('edit-error-dessert-desc'),
+  editErrDeliveryAddress:$('edit-error-delivery-address'),
+  editErrOrderDate:     $('edit-error-order-date'),
+  editErrDeliveryDate:  $('edit-error-delivery-date'),
+  editErrDeliveryTime:  $('edit-error-delivery-time'),
+  editErrCost:          $('edit-error-cost'),
+  editErrPrice:         $('edit-error-price'),
 };
 
 // 3. Persistencia — localStorage
@@ -392,59 +419,37 @@ function eliminarPedido(id) {
   renderPedidos();
 }
 
-function actualizarHoraEntrega(id, nuevaHora) {
+function limpiarTodosLosPedidos() {
+  state.pedidos = [];
+  state.filtroActivo = 'all';
+  localStorage.removeItem(STORAGE_KEY);
+
+  dom.filterBtns.forEach(btn => {
+    const esTodos = btn.dataset.filter === 'all';
+    btn.classList.toggle('active', esTodos);
+    btn.setAttribute('aria-pressed', esTodos ? 'true' : 'false');
+  });
+
+  renderPedidos();
+}
+
+function actualizarPedido(id, datos) {
   const pedido = state.pedidos.find(p => p.id === id);
   if (!pedido) return false;
-  if (!horaEsValida(nuevaHora)) return false;
 
-  pedido.deliveryTime = nuevaHora;
+  pedido.clientName = datos.clientName;
+  pedido.contactPhone = datos.contactPhone;
+  pedido.dessertDesc = datos.dessertDesc;
+  pedido.deliveryAddress = datos.deliveryAddress;
+  pedido.orderDate = datos.orderDate;
+  pedido.deliveryDate = datos.deliveryDate;
+  pedido.deliveryTime = datos.deliveryTime;
+  pedido.cost = parseFloat(datos.cost);
+  pedido.price = parseFloat(datos.price);
+
   guardarPedidos();
   renderPedidos();
   return true;
-}
-
-function actualizarFechaEntrega(id, nuevaFecha) {
-  const pedido = state.pedidos.find(p => p.id === id);
-  if (!pedido) return false;
-  if (!fechaISOEsValida(nuevaFecha)) return false;
-  if (nuevaFecha < pedido.orderDate) return false;
-
-  pedido.deliveryDate = nuevaFecha;
-  guardarPedidos();
-  renderPedidos();
-  return true;
-}
-
-function mostrarFeedbackGuardado(id, mensaje) {
-  const card = dom.ordersContainer.querySelector(`.order-card[data-id="${id}"]`);
-  if (!card) return;
-
-  const cardBody = card.querySelector('.card-body');
-  if (!cardBody) return;
-
-  let feedback = cardBody.querySelector('.card-inline-feedback');
-  if (!feedback) {
-    feedback = document.createElement('p');
-    feedback.className = 'card-inline-feedback';
-    feedback.setAttribute('role', 'status');
-    feedback.setAttribute('aria-live', 'polite');
-    cardBody.appendChild(feedback);
-  }
-
-  feedback.textContent = mensaje;
-  feedback.classList.add('is-visible');
-
-  const timerPrevio = feedbackTimersByOrderId.get(id);
-  if (timerPrevio) {
-    clearTimeout(timerPrevio);
-  }
-
-  const nuevoTimer = setTimeout(() => {
-    feedback.classList.remove('is-visible');
-    feedbackTimersByOrderId.delete(id);
-  }, 1300);
-
-  feedbackTimersByOrderId.set(id, nuevoTimer);
 }
 
 // 7. Filtrado y ordenamiento
@@ -473,7 +478,7 @@ function crearCardHTML(pedido) {
   const vencido = estaVencido(pedido);
   const telefono = pedido.contactPhone ? escapeHTML(pedido.contactPhone) : 'Sin teléfono';
   const direccion = pedido.deliveryAddress ? escapeHTML(pedido.deliveryAddress) : 'Sin dirección';
-  const horaEntrega = horaEsValida(pedido.deliveryTime) ? pedido.deliveryTime : '';
+  const horaEntrega = horaEsValida(pedido.deliveryTime) ? pedido.deliveryTime : 'Sin hora definida';
 
   // Chip de ganancia
   const gananciaClass = gananciaNegativa ? 'profit is-negative' : 'profit';
@@ -507,7 +512,7 @@ function crearCardHTML(pedido) {
         <div class="card-top">
           <h3 class="card-client">${escapeHTML(pedido.clientName)}</h3>
           <span class="status-badge ${status}" aria-label="Estado: ${status}">
-            ${ESTADO_ICONS[status]} ${status}
+            ${ESTADO_ICONS[status]}${ESTADO_ICONS[status] ? ' ' : ''}${status}
           </span>
         </div>
 
@@ -529,31 +534,9 @@ function crearCardHTML(pedido) {
             ${vencido ? '🚨' : '🗓'} Entrega: ${formatearFecha(pedido.deliveryDate)}
             ${vencido ? '<span class="overdue-label">VENCIDO</span>' : ''}
           </span>
-          <div class="delivery-date-editor">
-            <label class="delivery-date-label" for="delivery-date-${pedido.id}">📅 Fecha:</label>
-            <input
-              class="delivery-date-input"
-              id="delivery-date-${pedido.id}"
-              type="date"
-              value="${pedido.deliveryDate}"
-              min="${pedido.orderDate}"
-              data-id="${pedido.id}"
-              data-action="update-date"
-              aria-label="Fecha de entrega para ${escapeHTML(pedido.clientName)}"
-            />
-          </div>
-          <div class="delivery-time-editor">
-            <label class="delivery-time-label" for="delivery-time-${pedido.id}">⏰ Hora:</label>
-            <input
-              class="delivery-time-input"
-              id="delivery-time-${pedido.id}"
-              type="time"
-              value="${horaEntrega}"
-              data-id="${pedido.id}"
-              data-action="update-time"
-              aria-label="Hora de entrega para ${escapeHTML(pedido.clientName)}"
-            />
-          </div>
+          <span class="card-date-chip encargo" title="Hora de entrega">
+            Hora: ${horaEntrega}
+          </span>
         </div>
 
         <!-- Finanzas -->
@@ -576,12 +559,20 @@ function crearCardHTML(pedido) {
         <div class="card-actions">
           ${btnAvanzar}
           <button
+            class="btn-details"
+            data-id="${pedido.id}"
+            data-action="edit"
+            aria-label="Ver detalles y editar pedido de ${escapeHTML(pedido.clientName)}"
+          >
+            Detalles
+          </button>
+          <button
             class="btn-delete"
             data-id="${pedido.id}"
             data-action="delete"
             aria-label="Eliminar pedido de ${escapeHTML(pedido.clientName)}"
           >
-            🗑 Eliminar
+            Eliminar
           </button>
         </div>
 
@@ -590,7 +581,6 @@ function crearCardHTML(pedido) {
   `;
 }
 
-// XSS: escapar antes de inyectar en el DOM
 function escapeHTML(str) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   return String(str).replace(/[&<>"']/g, ch => map[ch]);
@@ -629,11 +619,20 @@ function renderPedidos() {
 }
 
 function modalEstaAbierto() {
-  return !dom.deleteModal.hasAttribute('hidden');
+  return state.modalActivo !== null;
+}
+
+function obtenerModalActivoEl() {
+  if (state.modalActivo === 'delete') return dom.deleteModal;
+  if (state.modalActivo === 'edit') return dom.editModal;
+  return null;
 }
 
 function obtenerElementosEnfocablesDelModal() {
-  return Array.from(dom.deleteModal.querySelectorAll(MODAL_FOCUSABLE_SELECTOR))
+  const modal = obtenerModalActivoEl();
+  if (!modal) return [];
+
+  return Array.from(modal.querySelectorAll(MODAL_FOCUSABLE_SELECTOR))
     .filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
 }
 
@@ -659,39 +658,159 @@ function atraparTabEnModal(e) {
   }
 }
 
-// 10. Modal de confirmación
-function abrirModal(id) {
-  const pedido = state.pedidos.find(p => p.id === id);
-  if (!pedido) return;
+function limpiarErroresEdicion() {
+  [
+    dom.editErrClientName, dom.editErrContactPhone, dom.editErrDessertDesc,
+    dom.editErrDeliveryAddress, dom.editErrOrderDate, dom.editErrDeliveryDate,
+    dom.editErrDeliveryTime, dom.editErrCost, dom.editErrPrice,
+  ].forEach(el => { el.textContent = ''; });
 
+  [
+    dom.editClientName, dom.editContactPhone, dom.editDessertDesc,
+    dom.editDeliveryAddress, dom.editOrderDate, dom.editDeliveryDate,
+    dom.editDeliveryTime, dom.editCost, dom.editPrice,
+  ].forEach(el => {
+    el.classList.remove('is-invalid');
+    el.closest('.input-money')?.classList.remove('is-invalid');
+  });
+
+  dom.editFormAlert.textContent = '';
+  dom.editFormAlert.setAttribute('hidden', '');
+}
+
+function validarFormularioEdicion() {
+  limpiarErroresEdicion();
+  let valido = true;
+  let primerCampoInvalido = null;
+  let totalErrores = 0;
+
+  const marcarError = (inputEl, errorEl, mensaje) => {
+    mostrarError(inputEl, errorEl, mensaje);
+    valido = false;
+    totalErrores += 1;
+    if (!primerCampoInvalido) {
+      primerCampoInvalido = inputEl;
+    }
+  };
+
+  const nombre = dom.editClientName.value.trim();
+  if (!nombre) marcarError(dom.editClientName, dom.editErrClientName, 'El nombre del cliente es obligatorio.');
+
+  const telefono = dom.editContactPhone.value.trim();
+  if (!telefono) {
+    marcarError(dom.editContactPhone, dom.editErrContactPhone, 'El teléfono de contacto es obligatorio.');
+  } else if (!telefonoEsValido(telefono)) {
+    marcarError(dom.editContactPhone, dom.editErrContactPhone, 'Ingresa un teléfono válido (mínimo 8 dígitos).');
+  }
+
+  const desc = dom.editDessertDesc.value.trim();
+  if (!desc) marcarError(dom.editDessertDesc, dom.editErrDessertDesc, 'Describe qué encargó el cliente.');
+
+  const direccion = dom.editDeliveryAddress.value.trim();
+  if (!direccion) marcarError(dom.editDeliveryAddress, dom.editErrDeliveryAddress, 'La dirección de entrega es obligatoria.');
+
+  const fechaEncargo = dom.editOrderDate.value;
+  if (!fechaEncargo) marcarError(dom.editOrderDate, dom.editErrOrderDate, 'Indica cuándo se hizo el encargo.');
+
+  const fechaEntrega = dom.editDeliveryDate.value;
+  if (!fechaEntrega) marcarError(dom.editDeliveryDate, dom.editErrDeliveryDate, 'Indica la fecha de entrega.');
+  if (fechaEncargo && fechaEntrega && fechaEntrega < fechaEncargo) {
+    marcarError(dom.editDeliveryDate, dom.editErrDeliveryDate, 'La entrega no puede ser antes del encargo.');
+  }
+
+  const horaEntrega = dom.editDeliveryTime.value;
+  if (!horaEntrega) {
+    marcarError(dom.editDeliveryTime, dom.editErrDeliveryTime, 'Indica la hora de entrega.');
+  } else if (!horaEsValida(horaEntrega)) {
+    marcarError(dom.editDeliveryTime, dom.editErrDeliveryTime, 'Ingresa una hora válida (HH:MM).');
+  }
+
+  const costo = parseFloat(dom.editCost.value);
+  if (dom.editCost.value === '' || isNaN(costo) || costo < 0) {
+    marcarError(dom.editCost, dom.editErrCost, 'Ingresa un costo válido (puede ser 0).');
+  }
+
+  const precio = parseFloat(dom.editPrice.value);
+  if (dom.editPrice.value === '' || isNaN(precio) || precio < 0) {
+    marcarError(dom.editPrice, dom.editErrPrice, 'Ingresa un precio de venta válido.');
+  }
+
+  if (!valido) {
+    dom.editFormAlert.textContent = totalErrores === 1
+      ? 'Hay 1 campo pendiente por corregir.'
+      : `Hay ${totalErrores} campos pendientes por corregir.`;
+    dom.editFormAlert.removeAttribute('hidden');
+
+    if (primerCampoInvalido) primerCampoInvalido.focus();
+  }
+
+  return valido;
+}
+
+function abrirModalGenerico(tipo, focusTarget) {
   state.ultimoElementoEnfocado = document.activeElement instanceof HTMLElement
     ? document.activeElement
     : null;
 
-  state.pedidoAEliminar = id;
-  dom.modalMessage.textContent = `Se eliminará el pedido de "${pedido.clientName}". Esta acción no se puede deshacer.`;
-  dom.deleteModal.removeAttribute('hidden');
+  state.modalActivo = tipo;
+  if (tipo === 'delete') dom.deleteModal.removeAttribute('hidden');
+  if (tipo === 'edit') dom.editModal.removeAttribute('hidden');
+
   dom.modalBackdrop.removeAttribute('hidden');
   document.body.style.overflow = 'hidden';
   dom.siteHeader?.setAttribute('aria-hidden', 'true');
   dom.mainContent?.setAttribute('aria-hidden', 'true');
 
   const focusables = obtenerElementosEnfocablesDelModal();
-  (focusables[0] || dom.modalConfirmBtn).focus();
+  (focusTarget || focusables[0]).focus();
+}
+
+function abrirModalEliminar(id) {
+  const pedido = state.pedidos.find(p => p.id === id);
+  if (!pedido) return;
+
+  state.pedidoAEliminar = id;
+  dom.modalMessage.textContent = `Se eliminará el pedido de "${pedido.clientName}". Esta acción no se puede deshacer.`;
+  abrirModalGenerico('delete', dom.modalConfirmBtn);
+}
+
+function abrirModalEdicion(id) {
+  const pedido = state.pedidos.find(p => p.id === id);
+  if (!pedido) return;
+
+  state.pedidoAEditar = id;
+  dom.editClientName.value = pedido.clientName;
+  dom.editContactPhone.value = pedido.contactPhone;
+  dom.editDessertDesc.value = pedido.dessertDesc;
+  dom.editDeliveryAddress.value = pedido.deliveryAddress;
+  dom.editOrderDate.value = pedido.orderDate;
+  dom.editDeliveryDate.value = pedido.deliveryDate;
+  dom.editDeliveryDate.min = pedido.orderDate;
+  dom.editDeliveryTime.value = pedido.deliveryTime || '';
+  dom.editCost.value = pedido.cost;
+  dom.editPrice.value = pedido.price;
+
+  limpiarErroresEdicion();
+  abrirModalGenerico('edit', dom.editClientName);
 }
 
 function cerrarModal() {
-  state.pedidoAEliminar = null;
-  dom.deleteModal.setAttribute('hidden', '');
+  const modalActivoEl = obtenerModalActivoEl();
+  if (modalActivoEl) modalActivoEl.setAttribute('hidden', '');
+
   dom.modalBackdrop.setAttribute('hidden', '');
   document.body.style.overflow = '';
   dom.siteHeader?.removeAttribute('aria-hidden');
   dom.mainContent?.removeAttribute('aria-hidden');
 
+  state.modalActivo = null;
+  state.pedidoAEliminar = null;
+  state.pedidoAEditar = null;
+  limpiarErroresEdicion();
+
   if (state.ultimoElementoEnfocado && state.ultimoElementoEnfocado.isConnected) {
     state.ultimoElementoEnfocado.focus();
   }
-
   state.ultimoElementoEnfocado = null;
 }
 
@@ -764,48 +883,12 @@ dom.ordersContainer.addEventListener('click', e => {
     avanzarEstado(id);
   }
 
+  if (accion === 'edit') {
+    abrirModalEdicion(id);
+  }
+
   if (accion === 'delete') {
-    abrirModal(id);
-  }
-});
-
-dom.ordersContainer.addEventListener('change', e => {
-  const input = e.target.closest('[data-action="update-time"], [data-action="update-date"]');
-  if (!input) return;
-
-  const id = input.dataset.id;
-  const accion = input.dataset.action;
-
-  if (accion === 'update-time') {
-    const nuevaHora = input.value;
-
-    if (!horaEsValida(nuevaHora)) {
-      const pedido = state.pedidos.find(p => p.id === id);
-      input.value = horaEsValida(pedido?.deliveryTime) ? pedido.deliveryTime : '';
-      return;
-    }
-
-    const actualizado = actualizarHoraEntrega(id, nuevaHora);
-    if (actualizado) {
-      mostrarFeedbackGuardado(id, 'Hora guardada');
-    }
-    return;
-  }
-
-  if (accion === 'update-date') {
-    const nuevaFecha = input.value;
-    const pedido = state.pedidos.find(p => p.id === id);
-    const fechaActual = pedido?.deliveryDate ?? '';
-
-    if (!fechaISOEsValida(nuevaFecha) || !pedido || nuevaFecha < pedido.orderDate) {
-      input.value = fechaActual;
-      return;
-    }
-
-    const actualizada = actualizarFechaEntrega(id, nuevaFecha);
-    if (actualizada) {
-      mostrarFeedbackGuardado(id, 'Fecha guardada');
-    }
+    abrirModalEliminar(id);
   }
 });
 
@@ -825,6 +908,13 @@ dom.filterBtns.forEach(btn => {
   });
 });
 
+dom.clearPedidosBtn.addEventListener('click', () => {
+  const confirmar = window.confirm('¿Quieres borrar todos los pedidos guardados? Esta acción no se puede deshacer.');
+  if (!confirmar) return;
+
+  limpiarTodosLosPedidos();
+});
+
 // Modal — cancelar
 dom.modalCancelBtn.addEventListener('click', cerrarModal);
 
@@ -833,6 +923,30 @@ dom.modalConfirmBtn.addEventListener('click', () => {
     eliminarPedido(state.pedidoAEliminar);
   }
   cerrarModal();
+});
+
+dom.editModalCancelBtn.addEventListener('click', cerrarModal);
+
+dom.editForm.addEventListener('submit', e => {
+  e.preventDefault();
+  if (!state.pedidoAEditar) return;
+  if (!validarFormularioEdicion()) return;
+
+  const actualizado = actualizarPedido(state.pedidoAEditar, {
+    clientName: dom.editClientName.value.trim(),
+    contactPhone: normalizarTelefonoParaGuardar(dom.editContactPhone.value),
+    dessertDesc: dom.editDessertDesc.value.trim(),
+    deliveryAddress: dom.editDeliveryAddress.value.trim(),
+    orderDate: dom.editOrderDate.value,
+    deliveryDate: dom.editDeliveryDate.value,
+    deliveryTime: dom.editDeliveryTime.value,
+    cost: dom.editCost.value,
+    price: dom.editPrice.value,
+  });
+
+  if (actualizado) {
+    cerrarModal();
+  }
 });
 
 dom.modalBackdrop.addEventListener('click', cerrarModal);
@@ -851,6 +965,14 @@ document.addEventListener('keydown', e => {
 
 dom.contactPhone.addEventListener('input', () => {
   dom.contactPhone.value = formatearTelefonoInput(dom.contactPhone.value);
+});
+
+dom.editContactPhone.addEventListener('input', () => {
+  dom.editContactPhone.value = formatearTelefonoInput(dom.editContactPhone.value);
+});
+
+dom.editOrderDate.addEventListener('change', () => {
+  dom.editDeliveryDate.min = dom.editOrderDate.value || '';
 });
 
 // Limpiar error del campo en cuanto el usuario empieza a corregirlo
@@ -876,6 +998,34 @@ dom.contactPhone.addEventListener('input', () => {
       if (errorEl) {
         errorEl.textContent = '';
       }
+    });
+  });
+
+[dom.editClientName, dom.editContactPhone, dom.editDessertDesc, dom.editDeliveryAddress, dom.editOrderDate, dom.editDeliveryDate, dom.editDeliveryTime, dom.editCost, dom.editPrice]
+  .forEach(campo => {
+    campo.addEventListener('input', () => {
+      campo.classList.remove('is-invalid');
+      campo.closest('.input-money')?.classList.remove('is-invalid');
+
+      const errorByField = {
+        'edit-client-name': dom.editErrClientName,
+        'edit-contact-phone': dom.editErrContactPhone,
+        'edit-dessert-desc': dom.editErrDessertDesc,
+        'edit-delivery-address': dom.editErrDeliveryAddress,
+        'edit-order-date': dom.editErrOrderDate,
+        'edit-delivery-date': dom.editErrDeliveryDate,
+        'edit-delivery-time': dom.editErrDeliveryTime,
+        'edit-cost': dom.editErrCost,
+        'edit-price': dom.editErrPrice,
+      };
+
+      const errorEl = errorByField[campo.id];
+      if (errorEl) {
+        errorEl.textContent = '';
+      }
+
+      dom.editFormAlert.textContent = '';
+      dom.editFormAlert.setAttribute('hidden', '');
     });
   });
 
