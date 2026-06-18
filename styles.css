@@ -3,9 +3,7 @@
    Mobile-first · CSS Custom Properties · 60-30-10
 ════════════════════════════════════════════════════ */
 
-/* ───────────────────────────────────────────────────
-   1. TOKENS DE DISEÑO (Custom Properties)
-─────────────────────────────────────────────────── */
+/* 1. TOKENS DE DISEÑO (Custom Properties) */
 :root {
   /* Paleta extraída del logo */
   --color-base:        #FDF4E3;   /* 60% — crema cálida */
@@ -659,6 +657,24 @@ input, textarea, select {
   line-height: 1.5;
 }
 
+.card-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-1);
+}
+
+.card-contact-item {
+  font-size: var(--text-xs);
+  color: var(--color-text-soft);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.card-contact-item strong {
+  color: var(--color-text);
+}
+
 /* Bloque de fechas */
 .card-dates {
   display: flex;
@@ -923,13 +939,8 @@ input, textarea, select {
     align-items: start;
   }
 
-  /* Nombre del cliente — ancho completo */
-  #add-order-form .form-group:nth-child(1) {
-    grid-column: 1 / -1;
-  }
-
-  /* Descripción — ancho completo */
-  #add-order-form .form-group:nth-child(2) {
+  /* Campos marcados como completos usan todo el ancho */
+  #add-order-form .form-group.is-full {
     grid-column: 1 / -1;
   }
 

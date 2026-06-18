@@ -21,6 +21,8 @@ const ESTADO_BTN_LABEL = {
   Entregado: 'Entregado',
 };
 
+const ESTADOS_VALIDOS = new Set(['Pendiente', 'Listo', 'Entregado']);
+
 // Estado reactivo de la UI
 let state = {
   pedidos:       [],   // array de objetos pedido
@@ -37,7 +39,9 @@ const dom = {
   formWrapper:    $('order-form'),
   form:           $('add-order-form'),
   clientName:     $('client-name'),
+  contactPhone:   $('contact-phone'),
   dessertDesc:    $('dessert-desc'),
+  deliveryAddress:$('delivery-address'),
   orderDate:      $('order-date'),
   deliveryDate:   $('delivery-date'),
   cost:           $('cost'),
@@ -46,7 +50,9 @@ const dom = {
 
   // Errores del formulario
   errClientName:  $('error-client-name'),
+  errContactPhone:$('error-contact-phone'),
   errDessertDesc: $('error-dessert-desc'),
+  errDeliveryAddress: $('error-delivery-address'),
   errOrderDate:   $('error-order-date'),
   errDeliveryDate:$('error-delivery-date'),
   errCost:        $('error-cost'),
@@ -72,17 +78,75 @@ const dom = {
 function cargarPedidos() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map(sanitizarPedido)
+      .filter(Boolean);
   } catch {
     return [];
   }
 }
 
 function guardarPedidos() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pedidos));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pedidos));
+  } catch {
+    // Si el almacenamiento falla (ej. cuota llena), evitamos romper la app.
+  }
 }
 
 // 4. Utilidades de fecha y dinero
+
+function limpiarTexto(value, maxLength) {
+  const limpio = String(value ?? '').trim();
+  return limpio.slice(0, maxLength);
+}
+
+function fechaISOEsValida(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const fecha = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(fecha.getTime());
+}
+
+function numeroSeguro(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function normalizarTelefonoParaGuardar(value) {
+  return formatearTelefonoInput(value);
+}
+
+function sanitizarPedido(rawPedido) {
+  if (!rawPedido || typeof rawPedido !== 'object') return null;
+
+  const orderDate = fechaISOEsValida(String(rawPedido.orderDate ?? ''))
+    ? String(rawPedido.orderDate)
+    : hoyISO();
+
+  const deliveryDateRaw = String(rawPedido.deliveryDate ?? '');
+  const deliveryDate = fechaISOEsValida(deliveryDateRaw)
+    ? deliveryDateRaw
+    : orderDate;
+
+  return {
+    id: limpiarTexto(rawPedido.id, 60) || generarId(),
+    clientName: limpiarTexto(rawPedido.clientName, 60) || 'Cliente sin nombre',
+    contactPhone: normalizarTelefonoParaGuardar(rawPedido.contactPhone),
+    dessertDesc: limpiarTexto(rawPedido.dessertDesc, 200) || 'Sin descripción',
+    deliveryAddress: limpiarTexto(rawPedido.deliveryAddress, 220),
+    orderDate,
+    deliveryDate: deliveryDate < orderDate ? orderDate : deliveryDate,
+    cost: numeroSeguro(rawPedido.cost),
+    price: numeroSeguro(rawPedido.price),
+    status: ESTADOS_VALIDOS.has(rawPedido.status) ? rawPedido.status : 'Pendiente',
+    creadoEn: Number.isFinite(Number(rawPedido.creadoEn)) ? Number(rawPedido.creadoEn) : Date.now(),
+  };
+}
 
 // "2025-06-15" → "15/06/2025"
 function formatearFecha(isoDate) {
@@ -121,17 +185,51 @@ function generarId() {
 // 5. Validación del formulario
 function limpiarErrores() {
   [
-    dom.errClientName, dom.errDessertDesc, dom.errOrderDate,
+    dom.errClientName, dom.errContactPhone, dom.errDessertDesc,
+    dom.errDeliveryAddress, dom.errOrderDate,
     dom.errDeliveryDate, dom.errCost, dom.errPrice
   ].forEach(el => { el.textContent = ''; });
 
   [
-    dom.clientName, dom.dessertDesc, dom.orderDate,
+    dom.clientName, dom.contactPhone, dom.dessertDesc,
+    dom.deliveryAddress, dom.orderDate,
     dom.deliveryDate, dom.cost, dom.price
   ].forEach(el => {
     el.classList.remove('is-invalid');
       el.closest('.input-money')?.classList.remove('is-invalid');
   });
+}
+
+function telefonoEsValido(phoneValue) {
+  const soloDigitos = String(phoneValue).replace(/\D/g, '');
+  return soloDigitos.length >= 8 && soloDigitos.length <= 13;
+}
+
+function formatearTelefonoInput(phoneValue) {
+  const value = String(phoneValue ?? '');
+  const startsWithPlus = value.trim().startsWith('+');
+  const digits = value.replace(/\D/g, '').slice(0, 13);
+
+  if (!digits) return '';
+
+  let prefix = '';
+  let body = digits;
+
+  if (startsWithPlus && digits.startsWith('52') && digits.length > 2) {
+    prefix = '+52 ';
+    body = digits.slice(2);
+  } else if (startsWithPlus) {
+    prefix = '+';
+  }
+
+  if (body.length <= 2) {
+    return `${prefix}${body}`;
+  }
+
+  const lada = body.slice(0, 2);
+  const resto = body.slice(2);
+  const grupos = resto.match(/.{1,4}/g)?.join(' ') ?? '';
+  return `${prefix}${lada}${grupos ? ` ${grupos}` : ''}`;
 }
 
 function mostrarError(inputEl, errorEl, mensaje) {
@@ -150,9 +248,24 @@ function validarFormulario() {
     valido = false;
   }
 
+  const telefono = dom.contactPhone.value.trim();
+  if (!telefono) {
+    mostrarError(dom.contactPhone, dom.errContactPhone, 'El teléfono de contacto es obligatorio.');
+    valido = false;
+  } else if (!telefonoEsValido(telefono)) {
+    mostrarError(dom.contactPhone, dom.errContactPhone, 'Ingresa un teléfono válido (mínimo 8 dígitos).');
+    valido = false;
+  }
+
   const desc = dom.dessertDesc.value.trim();
   if (!desc) {
     mostrarError(dom.dessertDesc, dom.errDessertDesc, 'Describe qué encargó el cliente.');
+    valido = false;
+  }
+
+  const direccion = dom.deliveryAddress.value.trim();
+  if (!direccion) {
+    mostrarError(dom.deliveryAddress, dom.errDeliveryAddress, 'La dirección de entrega es obligatoria.');
     valido = false;
   }
 
@@ -193,7 +306,9 @@ function agregarPedido(datos) {
   const nuevoPedido = {
     id:           generarId(),
     clientName:   datos.clientName,
+    contactPhone: datos.contactPhone,
     dessertDesc:  datos.dessertDesc,
+    deliveryAddress: datos.deliveryAddress,
     orderDate:    datos.orderDate,
     deliveryDate: datos.deliveryDate,
     cost:         parseFloat(datos.cost),
@@ -245,33 +360,36 @@ function obtenerPedidosFiltrados() {
 
 // 8. Render de una card
 function crearCardHTML(pedido) {
+  const status = ESTADOS_VALIDOS.has(pedido.status) ? pedido.status : 'Pendiente';
   const ganancia = pedido.price - pedido.cost;
   const gananciaNegativa = ganancia < 0;
   const vencido = estaVencido(pedido);
+  const telefono = pedido.contactPhone ? escapeHTML(pedido.contactPhone) : 'Sin teléfono';
+  const direccion = pedido.deliveryAddress ? escapeHTML(pedido.deliveryAddress) : 'Sin dirección';
 
   // Chip de ganancia
   const gananciaClass = gananciaNegativa ? 'profit is-negative' : 'profit';
   const gananciaLabel = gananciaNegativa ? '⚠ Pérdida' : '💰 Ganancia';
 
   // Botón avanzar estado
-  const esEntregado = pedido.status === 'Entregado';
+  const esEntregado = status === 'Entregado';
   const btnAvanzar = esEntregado
     ? `<button class="btn-advance" disabled aria-label="Pedido ya entregado">
-         ${ESTADO_BTN_LABEL[pedido.status]}
+         ${ESTADO_BTN_LABEL[status]}
        </button>`
     : `<button
          class="btn-advance"
          data-id="${pedido.id}"
          data-action="advance"
-         aria-label="Cambiar estado a ${ESTADO_SIGUIENTE[pedido.status]}"
+         aria-label="Cambiar estado a ${ESTADO_SIGUIENTE[status]}"
        >
-         ${ESTADO_BTN_LABEL[pedido.status]}
+         ${ESTADO_BTN_LABEL[status]}
        </button>`;
 
   return `
     <article
       class="order-card"
-      data-status="${pedido.status}"
+      data-status="${status}"
       data-id="${pedido.id}"
       role="listitem"
     >
@@ -280,13 +398,19 @@ function crearCardHTML(pedido) {
         <!-- Nombre + badge de estado -->
         <div class="card-top">
           <h3 class="card-client">${escapeHTML(pedido.clientName)}</h3>
-          <span class="status-badge ${pedido.status}" aria-label="Estado: ${pedido.status}">
-            ${ESTADO_ICONS[pedido.status]} ${pedido.status}
+          <span class="status-badge ${status}" aria-label="Estado: ${status}">
+            ${ESTADO_ICONS[status]} ${status}
           </span>
         </div>
 
         <!-- Descripción del postre -->
         <p class="card-desc">${escapeHTML(pedido.dessertDesc)}</p>
+
+        <!-- Contacto y dirección -->
+        <div class="card-contact">
+          <p class="card-contact-item"><strong>📞 Tel:</strong> ${telefono}</p>
+          <p class="card-contact-item"><strong>📍 Dir:</strong> ${direccion}</p>
+        </div>
 
         <!-- Fechas -->
         <div class="card-dates">
@@ -416,7 +540,9 @@ dom.form.addEventListener('submit', e => {
 
   agregarPedido({
     clientName:   dom.clientName.value.trim(),
+    contactPhone: normalizarTelefonoParaGuardar(dom.contactPhone.value),
     dessertDesc:  dom.dessertDesc.value.trim(),
+    deliveryAddress: dom.deliveryAddress.value.trim(),
     orderDate:    dom.orderDate.value,
     deliveryDate: dom.deliveryDate.value,
     cost:         dom.cost.value,
@@ -492,12 +618,32 @@ document.addEventListener('keydown', e => {
   }
 });
 
+dom.contactPhone.addEventListener('input', () => {
+  dom.contactPhone.value = formatearTelefonoInput(dom.contactPhone.value);
+});
+
 // Limpiar error del campo en cuanto el usuario empieza a corregirlo
-[dom.clientName, dom.dessertDesc, dom.orderDate, dom.deliveryDate, dom.cost, dom.price]
+[dom.clientName, dom.contactPhone, dom.dessertDesc, dom.deliveryAddress, dom.orderDate, dom.deliveryDate, dom.cost, dom.price]
   .forEach(campo => {
     campo.addEventListener('input', () => {
       campo.classList.remove('is-invalid');
       campo.closest('.input-money')?.classList.remove('is-invalid');
+
+      const errorByField = {
+        'client-name': dom.errClientName,
+        'contact-phone': dom.errContactPhone,
+        'dessert-desc': dom.errDessertDesc,
+        'delivery-address': dom.errDeliveryAddress,
+        'order-date': dom.errOrderDate,
+        'delivery-date': dom.errDeliveryDate,
+        cost: dom.errCost,
+        price: dom.errPrice,
+      };
+
+      const errorEl = errorByField[campo.id];
+      if (errorEl) {
+        errorEl.textContent = '';
+      }
     });
   });
 

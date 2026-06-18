@@ -71,6 +71,20 @@
           </div>
 
           <div class="form-group">
+            <label for="contact-phone">Teléfono de contacto</label>
+            <input
+              type="tel"
+              id="contact-phone"
+              name="contactPhone"
+              placeholder="Ej. +52 33 1234 5678"
+              maxlength="25"
+              required
+              autocomplete="tel"
+            />
+            <span class="field-error" id="error-contact-phone" role="alert"></span>
+          </div>
+
+          <div class="form-group is-full">
             <label for="dessert-desc">¿Qué encargó?</label>
             <textarea
               id="dessert-desc"
@@ -81,6 +95,19 @@
               required
             ></textarea>
             <span class="field-error" id="error-dessert-desc" role="alert"></span>
+          </div>
+
+          <div class="form-group is-full">
+            <label for="delivery-address">Dirección de entrega</label>
+            <textarea
+              id="delivery-address"
+              name="deliveryAddress"
+              placeholder="Ej. Av. Juárez 245, Col. Centro, Guadalajara"
+              rows="2"
+              maxlength="220"
+              required
+            ></textarea>
+            <span class="field-error" id="error-delivery-address" role="alert"></span>
           </div>
 
           <div class="form-group">
