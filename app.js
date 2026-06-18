@@ -22,12 +22,14 @@ const ESTADO_BTN_LABEL = {
 };
 
 const ESTADOS_VALIDOS = new Set(['Pendiente', 'Listo', 'Entregado']);
+const MODAL_FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 // Estado reactivo de la UI
 let state = {
   pedidos:       [],   // array de objetos pedido
   filtroActivo:  'all',
   pedidoAEliminar: null,  // id del pedido en espera de confirmación
+  ultimoElementoEnfocado: null,
 };
 
 // 2. Referencias al DOM
@@ -495,22 +497,67 @@ function renderPedidos() {
   dom.ordersContainer.innerHTML = pedidosFiltrados.map(crearCardHTML).join('');
 }
 
+function modalEstaAbierto() {
+  return !dom.deleteModal.hasAttribute('hidden');
+}
+
+function obtenerElementosEnfocablesDelModal() {
+  return Array.from(dom.deleteModal.querySelectorAll(MODAL_FOCUSABLE_SELECTOR))
+    .filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
+}
+
+function atraparTabEnModal(e) {
+  if (!modalEstaAbierto() || e.key !== 'Tab') return;
+
+  const focusables = obtenerElementosEnfocablesDelModal();
+  if (focusables.length === 0) return;
+
+  const primero = focusables[0];
+  const ultimo = focusables[focusables.length - 1];
+  const activo = document.activeElement;
+
+  if (e.shiftKey && activo === primero) {
+    e.preventDefault();
+    ultimo.focus();
+    return;
+  }
+
+  if (!e.shiftKey && activo === ultimo) {
+    e.preventDefault();
+    primero.focus();
+  }
+}
+
 // 10. Modal de confirmación
 function abrirModal(id) {
   const pedido = state.pedidos.find(p => p.id === id);
   if (!pedido) return;
 
+  state.ultimoElementoEnfocado = document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+
   state.pedidoAEliminar = id;
   dom.modalMessage.textContent = `Se eliminará el pedido de "${pedido.clientName}". Esta acción no se puede deshacer.`;
   dom.deleteModal.removeAttribute('hidden');
   dom.modalBackdrop.removeAttribute('hidden');
-  dom.modalConfirmBtn.focus();
+  document.body.style.overflow = 'hidden';
+
+  const focusables = obtenerElementosEnfocablesDelModal();
+  (focusables[0] || dom.modalConfirmBtn).focus();
 }
 
 function cerrarModal() {
   state.pedidoAEliminar = null;
   dom.deleteModal.setAttribute('hidden', '');
   dom.modalBackdrop.setAttribute('hidden', '');
+  document.body.style.overflow = '';
+
+  if (state.ultimoElementoEnfocado && state.ultimoElementoEnfocado.isConnected) {
+    state.ultimoElementoEnfocado.focus();
+  }
+
+  state.ultimoElementoEnfocado = null;
 }
 
 // 11. Toggle del formulario (móvil)
@@ -613,9 +660,15 @@ dom.modalConfirmBtn.addEventListener('click', () => {
 dom.modalBackdrop.addEventListener('click', cerrarModal);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !dom.deleteModal.hasAttribute('hidden')) {
+  if (!modalEstaAbierto()) return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
     cerrarModal();
+    return;
   }
+
+  atraparTabEnModal(e);
 });
 
 dom.contactPhone.addEventListener('input', () => {
