@@ -292,6 +292,10 @@ input, textarea, select {
   resize: vertical;
 }
 
+.form-group input[type="time"] {
+  min-height: 46px;
+}
+
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
@@ -709,6 +713,38 @@ input, textarea, select {
   color: var(--color-danger);
   background: var(--color-danger-bg);
   border-color: rgba(192, 67, 90, 0.25);
+}
+
+.delivery-time-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding: 2px;
+  border-radius: var(--radius-full);
+}
+
+.delivery-time-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-soft);
+}
+
+.delivery-time-input {
+  border: 1.5px solid var(--color-border);
+  background: var(--color-base);
+  color: var(--color-text);
+  border-radius: var(--radius-full);
+  padding: 6px 10px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  min-height: 34px;
+}
+
+.delivery-time-input:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(232, 39, 106, 0.12);
 }
 
 .overdue-label {

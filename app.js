@@ -36,6 +36,10 @@ let state = {
 const $ = id => document.getElementById(id);
 
 const dom = {
+  // Layout
+  siteHeader:     document.querySelector('.site-header'),
+  mainContent:    document.querySelector('.main-content'),
+
   // Formulario
   formToggleBtn:  $('form-toggle-btn'),
   formWrapper:    $('order-form'),
@@ -46,6 +50,7 @@ const dom = {
   deliveryAddress:$('delivery-address'),
   orderDate:      $('order-date'),
   deliveryDate:   $('delivery-date'),
+  deliveryTime:   $('delivery-time'),
   cost:           $('cost'),
   price:          $('price'),
   submitBtn:      $('submit-btn'),
@@ -57,6 +62,7 @@ const dom = {
   errDeliveryAddress: $('error-delivery-address'),
   errOrderDate:   $('error-order-date'),
   errDeliveryDate:$('error-delivery-date'),
+  errDeliveryTime:$('error-delivery-time'),
   errCost:        $('error-cost'),
   errPrice:       $('error-price'),
 
@@ -119,6 +125,10 @@ function numeroSeguro(value) {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function horaEsValida(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value ?? ''));
+}
+
 function normalizarTelefonoParaGuardar(value) {
   return formatearTelefonoInput(value);
 }
@@ -143,6 +153,7 @@ function sanitizarPedido(rawPedido) {
     deliveryAddress: limpiarTexto(rawPedido.deliveryAddress, 220),
     orderDate,
     deliveryDate: deliveryDate < orderDate ? orderDate : deliveryDate,
+    deliveryTime: horaEsValida(rawPedido.deliveryTime) ? String(rawPedido.deliveryTime) : '',
     cost: numeroSeguro(rawPedido.cost),
     price: numeroSeguro(rawPedido.price),
     status: ESTADOS_VALIDOS.has(rawPedido.status) ? rawPedido.status : 'Pendiente',
@@ -189,12 +200,12 @@ function limpiarErrores() {
   [
     dom.errClientName, dom.errContactPhone, dom.errDessertDesc,
     dom.errDeliveryAddress, dom.errOrderDate,
-    dom.errDeliveryDate, dom.errCost, dom.errPrice
+    dom.errDeliveryDate, dom.errDeliveryTime, dom.errCost, dom.errPrice
   ].forEach(el => { el.textContent = ''; });
 
   [
     dom.clientName, dom.contactPhone, dom.dessertDesc,
-    dom.deliveryAddress, dom.orderDate,
+    dom.deliveryAddress, dom.orderDate, dom.deliveryTime,
     dom.deliveryDate, dom.cost, dom.price
   ].forEach(el => {
     el.classList.remove('is-invalid');
@@ -283,6 +294,15 @@ function validarFormulario() {
     valido = false;
   }
 
+  const horaEntrega = dom.deliveryTime.value;
+  if (!horaEntrega) {
+    mostrarError(dom.deliveryTime, dom.errDeliveryTime, 'Indica la hora de entrega.');
+    valido = false;
+  } else if (!horaEsValida(horaEntrega)) {
+    mostrarError(dom.deliveryTime, dom.errDeliveryTime, 'Ingresa una hora válida (HH:MM).');
+    valido = false;
+  }
+
   if (fechaEncargo && fechaEntrega && fechaEntrega < fechaEncargo) {
     mostrarError(dom.deliveryDate, dom.errDeliveryDate, 'La entrega no puede ser antes del encargo.');
     valido = false;
@@ -313,6 +333,7 @@ function agregarPedido(datos) {
     deliveryAddress: datos.deliveryAddress,
     orderDate:    datos.orderDate,
     deliveryDate: datos.deliveryDate,
+    deliveryTime: datos.deliveryTime,
     cost:         parseFloat(datos.cost),
     price:        parseFloat(datos.price),
     status:       'Pendiente',
@@ -338,6 +359,16 @@ function avanzarEstado(id) {
 
 function eliminarPedido(id) {
   state.pedidos = state.pedidos.filter(p => p.id !== id);
+  guardarPedidos();
+  renderPedidos();
+}
+
+function actualizarHoraEntrega(id, nuevaHora) {
+  const pedido = state.pedidos.find(p => p.id === id);
+  if (!pedido) return;
+  if (!horaEsValida(nuevaHora)) return;
+
+  pedido.deliveryTime = nuevaHora;
   guardarPedidos();
   renderPedidos();
 }
@@ -368,6 +399,7 @@ function crearCardHTML(pedido) {
   const vencido = estaVencido(pedido);
   const telefono = pedido.contactPhone ? escapeHTML(pedido.contactPhone) : 'Sin teléfono';
   const direccion = pedido.deliveryAddress ? escapeHTML(pedido.deliveryAddress) : 'Sin dirección';
+  const horaEntrega = horaEsValida(pedido.deliveryTime) ? pedido.deliveryTime : '';
 
   // Chip de ganancia
   const gananciaClass = gananciaNegativa ? 'profit is-negative' : 'profit';
@@ -423,6 +455,18 @@ function crearCardHTML(pedido) {
             ${vencido ? '🚨' : '🗓'} Entrega: ${formatearFecha(pedido.deliveryDate)}
             ${vencido ? '<span class="overdue-label">VENCIDO</span>' : ''}
           </span>
+          <div class="delivery-time-editor">
+            <label class="delivery-time-label" for="delivery-time-${pedido.id}">⏰ Hora:</label>
+            <input
+              class="delivery-time-input"
+              id="delivery-time-${pedido.id}"
+              type="time"
+              value="${horaEntrega}"
+              data-id="${pedido.id}"
+              data-action="update-time"
+              aria-label="Hora de entrega para ${escapeHTML(pedido.clientName)}"
+            />
+          </div>
         </div>
 
         <!-- Finanzas -->
@@ -542,6 +586,8 @@ function abrirModal(id) {
   dom.deleteModal.removeAttribute('hidden');
   dom.modalBackdrop.removeAttribute('hidden');
   document.body.style.overflow = 'hidden';
+  dom.siteHeader?.setAttribute('aria-hidden', 'true');
+  dom.mainContent?.setAttribute('aria-hidden', 'true');
 
   const focusables = obtenerElementosEnfocablesDelModal();
   (focusables[0] || dom.modalConfirmBtn).focus();
@@ -552,6 +598,8 @@ function cerrarModal() {
   dom.deleteModal.setAttribute('hidden', '');
   dom.modalBackdrop.setAttribute('hidden', '');
   document.body.style.overflow = '';
+  dom.siteHeader?.removeAttribute('aria-hidden');
+  dom.mainContent?.removeAttribute('aria-hidden');
 
   if (state.ultimoElementoEnfocado && state.ultimoElementoEnfocado.isConnected) {
     state.ultimoElementoEnfocado.focus();
@@ -592,6 +640,7 @@ dom.form.addEventListener('submit', e => {
     deliveryAddress: dom.deliveryAddress.value.trim(),
     orderDate:    dom.orderDate.value,
     deliveryDate: dom.deliveryDate.value,
+    deliveryTime: dom.deliveryTime.value,
     cost:         dom.cost.value,
     price:        dom.price.value,
   });
@@ -629,6 +678,22 @@ dom.ordersContainer.addEventListener('click', e => {
   if (accion === 'delete') {
     abrirModal(id);
   }
+});
+
+dom.ordersContainer.addEventListener('change', e => {
+  const input = e.target.closest('[data-action="update-time"]');
+  if (!input) return;
+
+  const id = input.dataset.id;
+  const nuevaHora = input.value;
+
+  if (!horaEsValida(nuevaHora)) {
+    const pedido = state.pedidos.find(p => p.id === id);
+    input.value = horaEsValida(pedido?.deliveryTime) ? pedido.deliveryTime : '';
+    return;
+  }
+
+  actualizarHoraEntrega(id, nuevaHora);
 });
 
 // Filtros
@@ -676,7 +741,7 @@ dom.contactPhone.addEventListener('input', () => {
 });
 
 // Limpiar error del campo en cuanto el usuario empieza a corregirlo
-[dom.clientName, dom.contactPhone, dom.dessertDesc, dom.deliveryAddress, dom.orderDate, dom.deliveryDate, dom.cost, dom.price]
+[dom.clientName, dom.contactPhone, dom.dessertDesc, dom.deliveryAddress, dom.orderDate, dom.deliveryDate, dom.deliveryTime, dom.cost, dom.price]
   .forEach(campo => {
     campo.addEventListener('input', () => {
       campo.classList.remove('is-invalid');
@@ -689,6 +754,7 @@ dom.contactPhone.addEventListener('input', () => {
         'delivery-address': dom.errDeliveryAddress,
         'order-date': dom.errOrderDate,
         'delivery-date': dom.errDeliveryDate,
+        'delivery-time': dom.errDeliveryTime,
         cost: dom.errCost,
         price: dom.errPrice,
       };
