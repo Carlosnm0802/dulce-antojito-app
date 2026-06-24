@@ -79,3 +79,7 @@ Este proyecto me permitió practicar:
 ## Autor
 
 Proyecto personal creado por Carlos Nares.
+
+## Capturas de pantalla
+![alt text](image.png)
+![alt text](image-1.png)
