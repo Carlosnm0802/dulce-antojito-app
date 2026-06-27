@@ -201,6 +201,46 @@ function formatearFecha(isoDate) {
   return `${d}/${m}/${y}`;
 }
 
+function parseFechaLocalDesdeISO(isoDate) {
+  if (!fechaISOEsValida(isoDate)) return null;
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function inicioDelDia(fecha) {
+  return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+}
+
+function obtenerEtiquetaUrgencia(pedido) {
+  if (pedido.status === 'Entregado') return null;
+
+  const entrega = parseFechaLocalDesdeISO(pedido.deliveryDate);
+  if (!entrega) return null;
+
+  const hoy = inicioDelDia(new Date());
+  const msPorDia = 24 * 60 * 60 * 1000;
+  const diferenciaDias = Math.round((inicioDelDia(entrega) - hoy) / msPorDia);
+
+  if (diferenciaDias === 0) {
+    return { className: 'is-today', text: 'Hoy' };
+  }
+
+  if (diferenciaDias === 1) {
+    return { className: 'is-tomorrow', text: '¡Mañana!' };
+  }
+
+  return null;
+}
+
+function formatearHora12h(hora24) {
+  if (!horaEsValida(hora24)) return 'Sin hora definida';
+
+  const [h, m] = hora24.split(':').map(Number);
+  const meridiano = h >= 12 ? 'pm' : 'am';
+  const hora12 = h % 12 || 12;
+  return `${hora12}:${String(m).padStart(2, '0')} ${meridiano}`;
+}
+
 // Hoy en formato ISO "YYYY-MM-DD" (sin zona horaria)
 function hoyISO() {
   const hoy = new Date();
@@ -491,11 +531,24 @@ function crearCardHTML(pedido) {
   const vencido = estaVencido(pedido);
   const telefono = pedido.contactPhone ? escapeHTML(pedido.contactPhone) : 'Sin teléfono';
   const direccion = pedido.deliveryAddress ? escapeHTML(pedido.deliveryAddress) : 'Sin dirección';
-  const horaEntrega = horaEsValida(pedido.deliveryTime) ? pedido.deliveryTime : 'Sin hora definida';
+  const horaEntrega = formatearHora12h(pedido.deliveryTime);
+  const etiquetaUrgencia = obtenerEtiquetaUrgencia(pedido);
+  const direccionEsLarga = direccion.length > 68;
+  const direccionVisible = direccionEsLarga
+    ? `${direccion.slice(0, 68).trimEnd()}...`
+    : direccion;
+  const bloqueDireccion = direccionEsLarga
+    ? `<details class="card-address-details">
+         <summary class="card-contact-item">
+           <strong>📍 Dir:</strong> ${direccionVisible}
+         </summary>
+         <p class="card-contact-item card-address-full">${direccion}</p>
+       </details>`
+    : `<p class="card-contact-item"><strong>📍 Dir:</strong> ${direccionVisible}</p>`;
 
   // Chip de ganancia
   const gananciaClass = gananciaNegativa ? 'profit is-negative' : 'profit';
-  const gananciaLabel = gananciaNegativa ? '⚠ Pérdida' : '💰 Ganancia';
+  const gananciaLabel = gananciaNegativa ? 'Pérdida' : 'Ganancia';
 
   // Botón avanzar estado
   const esEntregado = status === 'Entregado';
@@ -535,7 +588,7 @@ function crearCardHTML(pedido) {
         <!-- Contacto y dirección -->
         <div class="card-contact">
           <p class="card-contact-item"><strong>📞 Tel:</strong> ${telefono}</p>
-          <p class="card-contact-item"><strong>📍 Dir:</strong> ${direccion}</p>
+          ${bloqueDireccion}
         </div>
 
         <!-- Fechas -->
@@ -544,11 +597,9 @@ function crearCardHTML(pedido) {
             📋 Encargado: ${formatearFecha(pedido.orderDate)}
           </span>
           <span class="card-date-chip entrega ${vencido ? 'is-overdue' : ''}" title="Fecha de entrega">
-            ${vencido ? '🚨' : '🗓'} Entrega: ${formatearFecha(pedido.deliveryDate)}
+            ${etiquetaUrgencia ? `<span class="urgency-label ${etiquetaUrgencia.className}">${etiquetaUrgencia.text}</span>` : ''}
+            ${vencido ? '🚨' : '🗓'} Entrega: ${formatearFecha(pedido.deliveryDate)} a las ${horaEntrega}
             ${vencido ? '<span class="overdue-label">VENCIDO</span>' : ''}
-          </span>
-          <span class="card-date-chip encargo" title="Hora de entrega">
-            Hora: ${horaEntrega}
           </span>
         </div>
 
@@ -602,6 +653,7 @@ function escapeHTML(str) {
 // 9. Render principal
 function renderPedidos() {
   const pedidosFiltrados = obtenerPedidosFiltrados();
+  renderContadoresFiltros();
 
   const total = pedidosFiltrados.length;
   dom.resultsCount.textContent = total === 0
@@ -629,6 +681,28 @@ function renderPedidos() {
 
   dom.emptyState.setAttribute('hidden', '');
   dom.ordersContainer.innerHTML = pedidosFiltrados.map(crearCardHTML).join('');
+}
+
+function renderContadoresFiltros() {
+  const conteos = state.pedidos.reduce((acc, pedido) => {
+    acc.total += 1;
+    if (acc[pedido.status] !== undefined) {
+      acc[pedido.status] += 1;
+    }
+    return acc;
+  }, { total: 0, Pendiente: 0, Listo: 0, Entregado: 0 });
+
+  dom.filterBtns.forEach(btn => {
+    const filtro = btn.dataset.filter;
+
+    if (!btn.dataset.baseLabel) {
+      btn.dataset.baseLabel = btn.textContent.trim();
+    }
+
+    const baseLabel = btn.dataset.baseLabel;
+    const total = filtro === 'all' ? conteos.total : (conteos[filtro] ?? 0);
+    btn.textContent = `${baseLabel} (${total})`;
+  });
 }
 
 function modalEstaAbierto() {
@@ -1065,8 +1139,20 @@ function init() {
   dom.deliveryTime.value = sugerirHoraEntrega();
 
   actualizarEstadoBotonLimpiar();
+  renderContadoresFiltros();
 
   renderPedidos();
 }
 
+function registrarServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      // Si falla el registro, la app sigue funcionando como web tradicional.
+    });
+  });
+}
+
+registrarServiceWorker();
 init();

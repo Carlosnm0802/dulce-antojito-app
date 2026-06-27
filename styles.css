@@ -792,6 +792,37 @@ input, textarea, select {
   color: var(--color-text);
 }
 
+.card-address-details {
+  border-radius: var(--radius-sm);
+}
+
+.card-address-details summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.card-address-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.card-address-details summary::after {
+  content: 'Ver mas';
+  font-weight: 700;
+  font-size: 0.65rem;
+  color: var(--color-brand);
+  margin-left: var(--space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.card-address-details[open] summary::after {
+  content: 'Ocultar';
+}
+
+.card-address-full {
+  margin-top: var(--space-1);
+}
+
 /* Bloque de fechas */
 .card-dates {
   display: flex;
@@ -802,6 +833,7 @@ input, textarea, select {
 .card-date-chip {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-1);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -836,6 +868,27 @@ input, textarea, select {
   border-radius: var(--radius-full);
   letter-spacing: 0.06em;
   margin-left: var(--space-1);
+}
+
+.urgency-label {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+}
+
+.urgency-label.is-today {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.urgency-label.is-tomorrow {
+  background: var(--status-pending-bar);
+  color: #674c00;
 }
 
 /* Fila de acciones */
