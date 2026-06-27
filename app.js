@@ -23,6 +23,7 @@ const ESTADO_BTN_LABEL = {
 
 const ESTADOS_VALIDOS = new Set(['Pendiente', 'Listo', 'Entregado']);
 const MODAL_FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const FRASE_CONFIRMACION_LIMPIEZA = 'LIMPIAR';
 
 // Estado reactivo de la UI
 let state = {
@@ -73,6 +74,8 @@ const dom = {
   filterBtns:     document.querySelectorAll('.filter-btn'),
   resultsCount:   $('results-count'),
   clearPedidosBtn:$('clear-pedidos-btn'),
+  clearConfirmInput: $('clear-confirm-input'),
+  clearConfirmError: $('clear-confirm-error'),
 
   // Pedidos
   ordersContainer: $('orders-container'),
@@ -431,6 +434,16 @@ function limpiarTodosLosPedidos() {
   });
 
   renderPedidos();
+}
+
+function fraseDeLimpiezaEsValida() {
+  return dom.clearConfirmInput.value.trim() === FRASE_CONFIRMACION_LIMPIEZA;
+}
+
+function actualizarEstadoBotonLimpiar() {
+  if (!dom.clearPedidosBtn || !dom.clearConfirmInput) return;
+
+  dom.clearPedidosBtn.disabled = !fraseDeLimpiezaEsValida();
 }
 
 function actualizarPedido(id, datos) {
@@ -908,11 +921,25 @@ dom.filterBtns.forEach(btn => {
   });
 });
 
+dom.clearConfirmInput.addEventListener('input', () => {
+  dom.clearConfirmError.textContent = '';
+  actualizarEstadoBotonLimpiar();
+});
+
 dom.clearPedidosBtn.addEventListener('click', () => {
-  const confirmar = window.confirm('¿Quieres borrar todos los pedidos guardados? Esta acción no se puede deshacer.');
+  if (!fraseDeLimpiezaEsValida()) {
+    dom.clearConfirmError.textContent = 'Escribe exactamente LIMPIAR para habilitar esta acción.';
+    dom.clearConfirmInput.focus();
+    return;
+  }
+
+  const confirmar = window.confirm('¿Confirmas borrar todos los pedidos? Esta acción no se puede deshacer.');
   if (!confirmar) return;
 
   limpiarTodosLosPedidos();
+  dom.clearConfirmInput.value = '';
+  dom.clearConfirmError.textContent = '';
+  actualizarEstadoBotonLimpiar();
 });
 
 // Modal — cancelar
@@ -1036,6 +1063,8 @@ function init() {
   // Fecha de encargo por defecto: hoy
   dom.orderDate.value = hoyISO();
   dom.deliveryTime.value = sugerirHoraEntrega();
+
+  actualizarEstadoBotonLimpiar();
 
   renderPedidos();
 }

@@ -231,12 +231,6 @@
         <!-- JS lo llena: "3 pedidos" -->
       </p>
 
-      <div class="controls-actions">
-        <button class="btn btn-ghost" id="clear-pedidos-btn" type="button">
-          Limpiar pedidos
-        </button>
-      </div>
-
     </section>
 
     <!-- ═══════════════════════════════════════
@@ -261,6 +255,36 @@
         <!-- Las cards se generan dinámicamente con JavaScript -->
       </div>
 
+    </section>
+
+    <section class="settings-section" aria-labelledby="settings-title">
+      <details class="danger-zone" id="danger-zone">
+        <summary id="settings-title">Configuración avanzada</summary>
+
+        <div class="danger-zone-content">
+          <h3>Zona de riesgo</h3>
+          <p>
+            Esta acción elimina todos los pedidos guardados y no se puede deshacer.
+            Para continuar, escribe <strong>LIMPIAR</strong>.
+          </p>
+
+          <div class="form-group">
+            <label for="clear-confirm-input">Confirmación de seguridad</label>
+            <input
+              type="text"
+              id="clear-confirm-input"
+              placeholder="Escribe LIMPIAR"
+              maxlength="20"
+              autocomplete="off"
+            />
+            <span class="field-error" id="clear-confirm-error" role="alert"></span>
+          </div>
+
+          <button class="btn btn-danger" id="clear-pedidos-btn" type="button" disabled>
+            Limpiar todos los pedidos
+          </button>
+        </div>
+      </details>
     </section>
 
   </main>
